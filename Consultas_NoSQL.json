@@ -1,0 +1,123 @@
+
+/*
+
+Comandos:
+- $match: Serve para filtrar 
+- $unwind: Abrir uma arrey
+- $group: Agrupa 
+- $sort: Ordena (-1 = Decrescente e 1 = crescente)
+- $limit: limite para consulta
+*/
+
+//-------------------------------------------------------------------------------------------------------------------------------------
+
+/*
+1) Quais são os interesses mais populares entre Influencers?
+
+Explicação: 
+/*
+ A pipeline "Top 5 interesses entre usuários Influencers" usa a seguinte estrutura
+
+  1. $match
+     Filtra apenas os documentos onde o perfil_calculado é "Influencer".
+
+  2. $unwind
+     Expande o array "interesses", criando um documento por interesse.
+     (Permite contar interesses individualmente)
+
+  3. $group
+     Agrupa por cada interesse e soma quantas vezes ele aparece.
+
+  4. $sort
+     Ordena os interesses do mais frequente para o menos frequente.
+
+  5. $limit
+     Retorna apenas os 5 interesses mais comuns.
+
+  Resultado:
+     Lista os 5 interesses predominantes entre usuários Influencers.
+*/
+
+[
+  { "$match": { "perfil_calculado": "Influencer" }},
+  { "$unwind": "$interesses" }, 
+  { "$group": { "_id": "$interesses", "total": { "$sum": 1 }}}, 
+  { "$sort": { "total": -1 }}, 
+  { "$limit": 5 } 
+]
+
+//-------------------------------------------------------------------------------------------------------------------------------------
+
+/* 2. Das pessoas que usaram SocialScope e foram classificada com 
+objetivo de “Influencer” qual distribuição por faixa etária de idade ?
+
+Explicação: 
+  A pipeline: "Distribuição de faixa etária entre Influencers" usa a seguinte estrutura
+
+  1. $match
+     Filtra apenas os documentos onde o perfil_calculado é "Influencer".
+     (Equivale ao WHERE no SQL)
+
+  2. $group
+     Agrupa os resultados por faixa_etaria e soma quantos usuários existem em cada faixa.
+     (Equivale ao GROUP BY + COUNT no SQL)
+
+  3. $sort
+     Ordena as faixas etárias pelo total de usuários, do maior para o menor.
+     (Equivale ao ORDER BY DESC no SQL)
+
+  Resultado:
+     Mostra quais faixas etárias têm mais Influencers no SocialScope.
+*/
+
+[
+  {"$match": {"perfil_calculado": "Influencer"}},
+  {"$group": {"_id": "$faixa_etaria","total": {"$sum": 1}}},
+  {"$sort": {"total": -1}}
+]
+
+/*3. Para cada perfil (Influencer, Investidor e Usuário Comum), qual faixa etária é predominante?*/
+
+/*
+Explicação do JSON abaixo: 
+
+  A pipeline "Faixa etária predominante por perfil" usa a seguinte estrutura
+
+  Esta pipeline identifica a faixa etária predominante para cada perfil 
+  (Influencer, Investidor e Usuário Comum) dentro do SocialScope.
+
+  Estrutura técnica da pipeline:
+
+  1. $group (primeira etapa)
+     Agrupa os documentos pela combinação:
+       - perfil_calculado
+       - faixa_etaria
+     e soma quantos usuários existem em cada combinação.
+     (Equivalente ao GROUP BY do SQL)
+
+  2. $sort
+     Ordena os resultados por perfil e, dentro de cada perfil,
+     coloca primeiro a faixa etária com maior quantidade.
+     Assim, o valor predominante fica no topo.
+
+  3. $group (segunda etapa)
+     Agrupa novamente, agora apenas por "perfil".
+     Usa "$first" para pegar:
+       - a faixa que ficou no topo (predominante)
+       - o total de usuários dessa faixa
+     Isso funciona porque o sort anterior já posicionou o maior total no início.
+
+  4. $sort final
+     Apenas organiza os perfis em ordem alfabética para apresentação.
+
+  Resultado:
+     A pipeline retorna, para cada perfil, qual faixa etária tem mais usuários,
+     permitindo entender o público predominante de cada tipo de perfil no SocialScope.
+*/
+
+[
+  {"$group": {"_id": {"perfil": "$perfil_calculado","faixa": "$faixa_etaria"},"total": { "$sum": 1 }}},
+  {"$sort": {"_id.perfil": 1,"total": -1}},
+  {"$group": {"_id": "$_id.perfil","faixa_predominante": { "$first": "$_id.faixa" },"quantidade_predominante": { "$first": "$total" }}},
+  {"$sort": {"_id": 1}}
+]
